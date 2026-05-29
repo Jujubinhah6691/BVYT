@@ -1,6 +1,6 @@
 # BVYT
 # Baixador de vídeos
-App simples para baixar vídeos do YouTube usando yt-dlp, em pt-br.
+App simples para baixar vídeos usando yt-dlp.
 
 O projeto inteiro está em PT-BR!
 
