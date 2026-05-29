@@ -2,16 +2,18 @@
 # Baixador de vídeos
 App simples para baixar vídeos do YouTube usando yt-dlp, em pt-br.
 
+O projeto inteiro está em PT-BR!
+
 # Como compilar:
-Visual Studio (MSVC) (sim eu sei que é ruim mas é o que tem no momento)
-Instale o Visual Studio 2022 com o workload "Desktop development with C++"
-Execute `build.bat` (duplo clique)
-O executável será gerado em `build\\BVYT.exe`
+Visual Studio (MSVC) (sim eu sei que é ruim mas é o que tem no momento); 
+Instale o Visual Studio 2022 com o workload "Desktop development with C++"; 
+Execute `build.bat` (duplo clique); 
+O executável será gerado em `build\\BVYT.exe`.
 
 # Como funciona
-O `.exe` compilado não depende de nada externo
-Na primeira execução, o app baixa automaticamente o `yt-dlp.exe` e salva em `%APPDATA%\\BVYT\\`
-Nas próximas execuções, o yt-dlp já está presente e o download começa imediatamente
+O `.exe` compilado não depende de nada externo; 
+Na primeira execução, o app baixa automaticamente o `yt-dlp.exe` e salva em `%APPDATA%\\BVYT\\`; 
+Nas próximas execuções, o yt-dlp já está presente e o download começa imediatamente.
 
 # Requisitos de sistema
 - Torradeira com Windows instalado
