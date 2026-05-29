@@ -18,7 +18,7 @@ Nas próximas execuções, o yt-dlp já está presente e o download começa imed
 # Requisitos de sistema
 - Torradeira com Windows instalado
 - Internet
-- + de 10Mb disponível
+- 10Mb disponível
 
 # Dependências
 `comctl32`	
