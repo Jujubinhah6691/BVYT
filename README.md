@@ -23,7 +23,7 @@ Nas próximas execuções, o yt-dlp já está presente e o download começa imed
 `wininet`	
 `shell32`	
 `yt-dlp`	
-basicamente Windows SDK + YT-DLP (que é baixado automaticamente)
+basicamente MSVC com Desktop development with C++, Windows SDK e YT-DLP (que é baixado automaticamente)
 
 
 # Se você for alterar o código, pelo amor, NÃO BAIXA O VSC DA MICROSOFT STORE! não tem o Windows SDK nele e é um saco para colocar manualmente, VAI DAR ERRO NESSA PORRA
