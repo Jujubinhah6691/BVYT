@@ -11,13 +11,16 @@
 #include <filesystem>
 #include <thread>
 #include <atomic>
+#include <vector>
+
+#include "resource.h" // Importando os IDs!
 
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "wininet.lib")
 #pragma comment(lib, "shell32.lib")
 #pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
-//id
+// IDs da Janela Principal
 #define IDC_URL_EDIT        101
 #define IDC_RADIO_VIDEO     102
 #define IDC_RADIO_VIDEO_ONLY 103
@@ -28,7 +31,7 @@
 #define IDC_OPEN_FOLDER_BTN 108
 #define IDC_PASTE_BTN       109
 
-//tudo
+// Variáveis Globais
 HINSTANCE g_hInstance = nullptr;
 HWND g_hWnd = nullptr;
 HWND g_hUrlEdit = nullptr;
@@ -41,18 +44,21 @@ HWND g_hProgress = nullptr;
 HWND g_hOpenFolderBtn = nullptr;
 HWND g_hPasteBtn = nullptr;
 
+std::wstring g_pendingUrl = L"";
+
 std::atomic<bool> g_downloading(false);
 std::wstring g_downloadsPath;
 std::wstring g_ytdlpPath;
 
-//modo de selecao
+// Modo de Seleção
 int g_selectedMode = 0; // 0: Video+Audio, 1: VideoOnly, 2: AudioOnly
 
-//Ponteiro para o procedimento original da EDIT para o subclassing
+// Ponteiro para o procedimento original da EDIT
 WNDPROC g_OrigEditProc = nullptr;
 
-//bonito
+// Estilização
 HBRUSH g_hBkgBrush = nullptr;
+HBRUSH g_hPanelBrush = nullptr;
 HFONT  g_hFontMain = nullptr;
 HFONT  g_hFontTitle = nullptr;
 HFONT  g_hFontSmall = nullptr;
@@ -60,22 +66,21 @@ HFONT  g_hFontSmall = nullptr;
 const COLORREF CLR_BG = RGB(15, 15, 20);
 const COLORREF CLR_PANEL = RGB(22, 22, 30);
 const COLORREF CLR_ACCENT = RGB(255, 50, 50);
-const COLORREF CLR_ACCENT2 = RGB(200, 30, 30);
 const COLORREF CLR_TEXT = RGB(240, 240, 240);
 const COLORREF CLR_TEXT_DIM = RGB(140, 140, 155);
 const COLORREF CLR_EDIT_BG = RGB(28, 28, 38);
 const COLORREF CLR_BORDER = RGB(50, 50, 65);
 
-//fix da selecao da caixa de texto
+// Fix da seleção (Ctrl+A)
 LRESULT CALLBACK EditSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     if (uMsg == WM_KEYDOWN && wParam == 'A' && (GetKeyState(VK_CONTROL) & 0x8000)) {
-        SendMessageW(hWnd, EM_SETSEL, 0, -1); // Seleciona todo o texto
+        SendMessageW(hWnd, EM_SETSEL, 0, -1);
         return 0;
     }
     return CallWindowProcW(g_OrigEditProc, hWnd, uMsg, wParam, lParam);
 }
 
-//helpers
+// Helpers
 std::wstring GetDownloadsFolder() {
     wchar_t path[MAX_PATH];
     if (SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_PERSONAL, nullptr, 0, path))) {
@@ -189,8 +194,8 @@ bool RunYtDlp(const std::wstring& args) {
     return exitCode == 0;
 }
 
-//thread de download
-void DownloadThread(std::wstring url, int mode) {
+// Thread de Download
+void DownloadThread(std::wstring url, int mode, std::wstring quality, std::wstring format) {
     PostMessageW(g_hWnd, WM_APP + 2, 1, 0);
     PostMessageW(g_hWnd, WM_APP + 3, 0, 0);
 
@@ -206,14 +211,20 @@ void DownloadThread(std::wstring url, int mode) {
     std::wstring outputTemplate = L"\"" + g_downloadsPath + L"\\%(title)s.%(ext)s\"";
     std::wstring args;
 
-    if (mode == 0) {
-        args = L"-f \"bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best\" --merge-output-format mp4 -o " + outputTemplate + L" \"" + url + L"\"";
+    // Filtro de resolução
+    std::wstring qFilter = L"";
+    if (quality == L"1080p") qFilter = L"[height<=1080]";
+    else if (quality == L"720p") qFilter = L"[height<=720]";
+    else if (quality == L"480p") qFilter = L"[height<=480]";
+
+    if (mode == 0) { // Vídeo + Áudio
+        args = L"-f \"bestvideo" + qFilter + L"+bestaudio/best\" --merge-output-format " + format + L" -o " + outputTemplate + L" \"" + url + L"\"";
     }
-    else if (mode == 1) {
-        args = L"-f \"bestvideo[ext=mp4]/bestvideo/best\" --remux-video mp4 -o " + outputTemplate + L" \"" + url + L"\"";
+    else if (mode == 1) { // Somente Vídeo
+        args = L"-f \"bestvideo" + qFilter + L"/best\" --remux-video " + format + L" -o " + outputTemplate + L" \"" + url + L"\"";
     }
-    else {
-        args = L"-f \"bestaudio\" -x --audio-format mp3 -o " + outputTemplate + L" \"" + url + L"\"";
+    else { // Somente Áudio
+        args = L"-f \"bestaudio\" -x --audio-format " + format + L" -o " + outputTemplate + L" \"" + url + L"\"";
     }
 
     {
@@ -233,14 +244,83 @@ void DownloadThread(std::wstring url, int mode) {
     g_downloading = false;
 }
 
-//janela
+// Procedimento do DialogBox importado do .rc
+INT_PTR CALLBACK OptionsDlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
+    switch (msg) {
+    case WM_INITDIALOG: {
+        HWND hCmbQual = GetDlgItem(hDlg, IDC_CMB_QUALITY);
+        HWND hCmbFmt = GetDlgItem(hDlg, IDC_CMB_FORMAT);
+
+        if (g_selectedMode == 2) { // Áudio
+            SetDlgItemTextW(hDlg, IDC_LBL_QUALITY, L"Qualidade (Automático para Áudio):");
+            EnableWindow(hCmbQual, FALSE);
+            SendMessageW(hCmbQual, CB_ADDSTRING, 0, (LPARAM)L"Melhor Áudio");
+            SendMessageW(hCmbQual, CB_SETCURSEL, 0, 0);
+
+            SendMessageW(hCmbFmt, CB_ADDSTRING, 0, (LPARAM)L"mp3");
+            SendMessageW(hCmbFmt, CB_ADDSTRING, 0, (LPARAM)L"m4a");
+            SendMessageW(hCmbFmt, CB_ADDSTRING, 0, (LPARAM)L"wav");
+            SendMessageW(hCmbFmt, CB_ADDSTRING, 0, (LPARAM)L"flac");
+            SendMessageW(hCmbFmt, CB_SETCURSEL, 0, 0); // Default: mp3
+        }
+        else { // Vídeo
+            SetDlgItemTextW(hDlg, IDC_LBL_QUALITY, L"Qualidade do Vídeo:");
+            SendMessageW(hCmbQual, CB_ADDSTRING, 0, (LPARAM)L"Melhor (Automático)");
+            SendMessageW(hCmbQual, CB_ADDSTRING, 0, (LPARAM)L"1080p");
+            SendMessageW(hCmbQual, CB_ADDSTRING, 0, (LPARAM)L"720p");
+            SendMessageW(hCmbQual, CB_ADDSTRING, 0, (LPARAM)L"480p");
+            SendMessageW(hCmbQual, CB_SETCURSEL, 0, 0); // Default: Melhor
+
+            SendMessageW(hCmbFmt, CB_ADDSTRING, 0, (LPARAM)L"mp4");
+            SendMessageW(hCmbFmt, CB_ADDSTRING, 0, (LPARAM)L"mkv");
+            SendMessageW(hCmbFmt, CB_ADDSTRING, 0, (LPARAM)L"webm");
+            SendMessageW(hCmbFmt, CB_SETCURSEL, 0, 0); // Default: mp4
+        }
+        return (INT_PTR)TRUE;
+    }
+
+    // Mantendo o visual Escuro da nossa UI!
+    case WM_CTLCOLORDLG:
+    case WM_CTLCOLORSTATIC: {
+        HDC hdc = (HDC)wParam;
+        SetBkMode(hdc, TRANSPARENT);
+        SetTextColor(hdc, CLR_TEXT);
+        return (INT_PTR)g_hPanelBrush;
+    }
+
+    case WM_COMMAND: {
+        int id = LOWORD(wParam);
+        if (id == IDOK) {
+            wchar_t qBuf[64] = L"", fBuf[64] = L"";
+            GetDlgItemTextW(hDlg, IDC_CMB_QUALITY, qBuf, 63);
+            GetDlgItemTextW(hDlg, IDC_CMB_FORMAT, fBuf, 63);
+
+            g_downloading = true;
+            std::thread(DownloadThread, g_pendingUrl, g_selectedMode, std::wstring(qBuf), std::wstring(fBuf)).detach();
+
+            EndDialog(hDlg, IDOK);
+            return (INT_PTR)TRUE;
+        }
+        else if (id == IDCANCEL) {
+            EndDialog(hDlg, IDCANCEL);
+            return (INT_PTR)TRUE;
+        }
+        break;
+    }
+    }
+    return (INT_PTR)FALSE;
+}
+
+// Janela Principal
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
     case WM_CREATE: {
         g_hFontTitle = CreateFontW(28, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Segoe UI");
         g_hFontMain = CreateFontW(15, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Segoe UI");
         g_hFontSmall = CreateFontW(13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Segoe UI");
+        
         g_hBkgBrush = CreateSolidBrush(CLR_BG);
+        g_hPanelBrush = CreateSolidBrush(CLR_PANEL);
 
         int x = 30, y = 70;
 
@@ -257,7 +337,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         y += 80;
 
-        HWND hFmtLabel = CreateWindowW(L"STATIC", L"Formato", WS_CHILD | WS_VISIBLE, x, y, 200, 20, hWnd, nullptr, g_hInstance, nullptr);
+        HWND hFmtLabel = CreateWindowW(L"STATIC", L"Formato de Sa\u00EDda Base", WS_CHILD | WS_VISIBLE, x, y, 200, 20, hWnd, nullptr, g_hInstance, nullptr);
         SendMessageW(hFmtLabel, WM_SETFONT, (WPARAM)g_hFontSmall, TRUE);
 
         y += 25;
@@ -385,9 +465,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         HDC hdc = BeginPaint(hWnd, &ps);
 
         RECT titleRc = { 0, 0, 470, 58 };
-        HBRUSH hTitleBrush = CreateSolidBrush(CLR_PANEL);
-        FillRect(hdc, &titleRc, hTitleBrush);
-        DeleteObject(hTitleBrush);
+        FillRect(hdc, &titleRc, g_hPanelBrush);
 
         RECT accentRc = { 0, 0, 4, 58 };
         HBRUSH hAccBrush = CreateSolidBrush(CLR_ACCENT);
@@ -473,22 +551,23 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
             if (url.empty()) { SetStatus(L"\u26A0  Cole o link do v\u00EDdeo antes de baixar."); return 0; }
 
-            int mode = g_selectedMode;
-            g_downloading = true;
-            std::thread(DownloadThread, url, mode).detach();
+            // Salva a URL e puxa o Dialog direto do .rc
+            g_pendingUrl = url;
+            DialogBoxParamW(g_hInstance, MAKEINTRESOURCEW(IDD_OPTIONS_DIALOG), hWnd, OptionsDlgProc, 0);
         }
         return 0;
     }
 
     case WM_DESTROY:
-        DeleteObject(g_hFontMain); DeleteObject(g_hFontTitle); DeleteObject(g_hFontSmall); DeleteObject(g_hBkgBrush);
+        DeleteObject(g_hFontMain); DeleteObject(g_hFontTitle); DeleteObject(g_hFontSmall); 
+        DeleteObject(g_hBkgBrush); DeleteObject(g_hPanelBrush);
         PostQuitMessage(0);
         return 0;
     }
     return DefWindowProcW(hWnd, msg, wParam, lParam);
 }
 
-//winmain
+// WinMain
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int nCmdShow) {
     g_hInstance = hInstance;
     g_downloadsPath = GetDownloadsFolder();
@@ -500,7 +579,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int nCmdShow) {
     wc.cbSize = sizeof(wc);
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInstance;
-    wc.hIcon = LoadIconW(g_hInstance, (LPCWSTR)MAKEINTRESOURCE(100));
+    wc.hIcon = LoadIconW(g_hInstance, MAKEINTRESOURCEW(IDI_APP_ICON));
     wc.hCursor = LoadCursorW(nullptr, (LPCWSTR)IDC_ARROW);
     wc.hbrBackground = CreateSolidBrush(CLR_BG);
     wc.lpszClassName = L"BVYTClass";
