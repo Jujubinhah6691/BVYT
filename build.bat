@@ -47,7 +47,8 @@ cd build
 
 :: compila
 echo Compilando recursos...
-rc.exe /nologo /fo app.res "..\resources\app.rc"
+:: Adicionando as pastas src e resources nos Includes (/I) para o rc.exe achar o resource.h
+rc.exe /nologo /I "..\src" /I "..\resources" /fo app.res "..\resources\app.rc"
 if errorlevel 1 (
     echo Compliacao de recursos falhou, continuando sem...
     set "RES_FILE="
@@ -58,7 +59,9 @@ if errorlevel 1 (
 
 :: compila 2
 echo Compilando C++...
-cl.exe /nologo /std:c++17 /O2 /GL /W3 /EHsc ^
+:: Adicionando as pastas src e resources nos Includes (/I) para o cl.exe achar o resource.h
+cl.exe /nologo /std:c++17 /utf-8 /O2 /GL /W3 /EHsc ^
+    /I "..\src" /I "..\resources" ^
     /D "UNICODE" /D "_UNICODE" /D "WIN32" /D "NDEBUG" ^
     /Fe"BVYT.exe" ^
     "..\src\main.cpp" ^
@@ -87,6 +90,7 @@ echo   Build concluido com sucesso!
 echo   Executavel: build\BVYT.exe
 echo ============================================
 echo.
+
 echo O app baixara o yt-dlp automaticamente
 echo na primeira execucao (necessita internet).
 echo.
