@@ -1,7 +1,7 @@
 #include <windows.h>
-#include <commctrl.h>
+#include "resource.h"
 
-100 ICON "app.ico"
+IDI_APP_ICON ICON "app.ico"
 
 VS_VERSION_INFO VERSIONINFO
 FILEVERSION     1, 0, 0, 0
@@ -12,22 +12,36 @@ FILEOS          VOS__WINDOWS32
 FILETYPE        VFT_APP
 FILESUBTYPE     0x0L
 BEGIN
-	BLOCK "StringFileInfo"
-	BEGIN
-		BLOCK "040904b0"
-		BEGIN
-			VALUE "CompanyName", "Aiko"
-			VALUE "FileDescription", "Baixador de videos do youtube"
-			VALUE "FileVersion", "1.0.0.0"
-			VALUE "InternalName", "YTVD"
-			VALUE "LegalCopyright", "2026"
-			VALUE "OriginalFilename", "BVYT.exe"
-			VALUE "ProductName", "Baixador de video"
-			VALUE "ProductVersion", "1.0.0.0"
-		END
-	END
-	BLOCK "VarFileInfo"
-	BEGIN
-		VALUE "Translation", 0x409, 1200
-	END
+BLOCK "StringFileInfo"
+BEGIN
+BLOCK "040904b0"
+BEGIN
+VALUE "CompanyName", "Aiko"
+VALUE "FileDescription", "Baixador de videos do youtube"
+VALUE "FileVersion", "1.0.0.0"
+VALUE "InternalName", "YTVD"
+VALUE "LegalCopyright", "2026"
+VALUE "OriginalFilename", "BVYT.exe"
+VALUE "ProductName", "Baixador de video"
+VALUE "ProductVersion", "1.0.0.0"
+END
+END
+BLOCK "VarFileInfo"
+BEGIN
+VALUE "Translation", 0x409, 1200
+END
+END
+
+// Template da Janela de Opções
+IDD_OPTIONS_DIALOG DIALOGEX 0, 0, 200, 140
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Opcoes de Download"
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+LTEXT           "Qualidade do Vídeo:", IDC_LBL_QUALITY, 15, 10, 170, 10
+COMBOBOX        IDC_CMB_QUALITY, 15, 25, 170, 60, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+LTEXT           "Formato do Arquivo:", IDC_LBL_FORMAT, 15, 55, 170, 10
+COMBOBOX        IDC_CMB_FORMAT, 15, 70, 170, 60, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+DEFPUSHBUTTON   "Confirmar", IDOK, 40, 115, 55, 14
+PUSHBUTTON      "Cancelar", IDCANCEL, 105, 115, 55, 14
 END
